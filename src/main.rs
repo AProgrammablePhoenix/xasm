@@ -210,6 +210,7 @@ fn adc(ctx: &mut Context, args: &str) {
                     register        : r0,
                     register_size   : s0,
                     imm             : imm,
+                    default_reg_v   : 2,
                     r8_imm8_op      : 0x80,
                     r_def_imm8_op   : 0x83,
                     r_imm_def_op    : 0x81
@@ -337,7 +338,116 @@ fn adcx(ctx: &mut Context, args: &str) {
 }
 
 fn add(ctx: &mut Context, args: &str) {
-    
+    let parsed_args = expect_arguments::<2>(ctx, args).unwrap_or_else(|| {
+        println!(
+            "{} on line {}: Invalid number of arguments for `{}`: `{}`",
+            "Error".red(),
+            ctx.line_no,
+            "add".purple(),
+            args.yellow()
+        );
+        ctx.on_error = true;
+        Vec::new()
+    });
+    if ctx.on_error {
+        return;
+    }
+
+    if let AsmArg::Immediate(imm) = parsed_args[1] {
+        if let AsmArg::Register(r0, s0) = parsed_args[0] {
+            if !x86_format_i(ctx, &FormatI{
+                register    : r0,
+                imm         : imm,
+                op_imm8     : 0x04,
+                op_imm_def  : 0x05
+            }) {
+                x86_format_ri(ctx, "add", &FormatRI {
+                    register        : r0,
+                    register_size   : s0,
+                    imm             : imm,
+                    default_reg_v   : 0,
+                    r8_imm8_op      : 0x80,
+                    r_def_imm8_op   : 0x83,
+                    r_imm_def_op    : 0x81
+                });
+            }
+        }
+        else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
+            return x86_format_mi(ctx, &FormatMI {
+                mdesc           : mdesc,
+                size_override   : size_override,
+                imm             : imm,
+                default_reg_v   : 0,
+                r8_imm8_op      : 0x80,
+                r_imm_def_op    : 0x81,
+                r_def_imm8_op   : 0x83
+            });
+        }
+        else {
+            println!(
+                "{} on line {}: Wrong destination operand type for `{}`, expected a register or memory operand",
+                "Error".red(),
+                ctx.line_no,
+                "adc".yellow()
+            );
+            ctx.on_error = true;
+            return;
+        }
+    }
+    else if let AsmArg::Register(rs, ss) = parsed_args[1] {
+        if let AsmArg::Register(rd, sd) = parsed_args[0] {
+            return x86_format_rr(ctx, "add", &FormatRR {
+                reg_source      : rs,
+                reg_source_size : ss,
+                reg_dest        : rd,
+                reg_dest_size   : sd,
+                r8_op           : 0x00,
+                r_def_op        : 0x01
+            });
+        }
+        else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
+            return x86_format_mr(ctx, &FormatMR {
+                mdesc           : mdesc,
+                size_override   : size_override,
+                reg_size        : ss,
+                default_reg_v   : REGISTERS_ENCODING[&rs],
+                r8_rm8_op       : 0x00,
+                r_rm_def_op     : 0x01
+            });
+        }
+        else {
+            println!(
+                "{} on line {}: Wrong destination operand type for `{}`, expected a register or memory operand",
+                "Error".red(),
+                ctx.line_no,
+                "adc".yellow()
+            );
+            ctx.on_error = true;
+            return;
+        }
+    }
+    else if let AsmArg::Memory(mdesc, size_override) = parsed_args[1] {
+        if let AsmArg::Register(rd, sd) = parsed_args[0] {
+            return x86_format_mr(ctx, &FormatMR {
+                mdesc           : mdesc,
+                size_override   : size_override,
+                reg_size        : sd,
+                default_reg_v   : REGISTERS_ENCODING[&rd],
+                r8_rm8_op       : 0x02,
+                r_rm_def_op     : 0x03
+            });
+        }
+        else {
+            println!(
+                "{} on line {}: Wrong destination operand type for `{}`, expected a register operand",
+                "Error".red(),
+                ctx.line_no,
+                "adc".yellow()
+            );
+            ctx.on_error = true;
+            return;
+        }
+    }
 }
 
 lazy_static! {
@@ -347,7 +457,8 @@ lazy_static! {
         ("aam", aam as fn(&mut Context, &str)),
         ("aas", aas as fn(&mut Context, &str)),
         ("adc", adc as fn(&mut Context, &str)),
-        ("adcx", adcx as fn(&mut Context, &str))
+        ("adcx", adcx as fn(&mut Context, &str)),
+        ("add", add as fn(&mut Context, &str))
     ]);
 }
 

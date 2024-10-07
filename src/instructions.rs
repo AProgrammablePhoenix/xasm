@@ -16,7 +16,8 @@ pub struct FormatRI {
     pub register        : AsmRegister,
     pub register_size   : i32,
     pub imm             : u64,
-
+    
+    pub default_reg_v   : u8,
     pub r8_imm8_op      : u8,
     pub r_imm_def_op    : u8,
     pub r_def_imm8_op   : u8
@@ -80,7 +81,7 @@ pub fn x86_format_i(ctx: &mut Context, fparams: &FormatI) -> bool {
 }
 
 pub fn x86_format_ri(ctx: &mut Context, instruction: &str, fparams: &FormatRI) {
-    let modrm = build_modrm_core(REGISTERS_ENCODING[&fparams.register], 2, 0b11);
+    let modrm = build_modrm_core(REGISTERS_ENCODING[&fparams.register], fparams.default_reg_v, 0b11);
     let imm = fparams.imm;
 
     match fparams.register_size {
