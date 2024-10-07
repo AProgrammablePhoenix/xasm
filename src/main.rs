@@ -200,97 +200,20 @@ fn adc(ctx: &mut Context, args: &str) {
 
     if let AsmArg::Immediate(imm) = parsed_args[1] {
         if let AsmArg::Register(r0, s0) = parsed_args[0] {
-            match r0 {
-                AsmRegister::AL => {
-                    output_write(ctx, &[0x14, imm as u8]);
-                },
-                AsmRegister::AX => {
-                    if let BitsMode::M16 = ctx.b_mode {
-                        output_write(ctx, &[0x15]);
-                    }
-                    else {
-                        output_write(ctx, &[0x66, 0x15]);
-                    }
-                    output_write(ctx, &(imm as u16).to_le_bytes());
-                },
-                AsmRegister::EAX => {
-                    if let BitsMode::M16 = ctx.b_mode {
-                        output_write(ctx, &[0x66, 0x15]);
-                    }
-                    else {
-                        output_write(ctx, &[0x15]);
-                    }
-                    output_write(ctx, &(imm as u32).to_le_bytes());
-                },
-                _ => {
-                    match s0 {
-                        8 => {
-                            if test_number_8(imm as i64) {
-                                println!(
-                                    "{} on line {}: Immediate value `{}` too large to fit within 8 bits, truncating to 8 bits",
-                                    "Warning".yellow(),
-                                    ctx.line_no,
-                                    imm
-                                );
-                            }
-
-                            output_write(ctx, &[0x80, build_modrm_core(REGISTERS_ENCODING[&r0], 2, 0b11), imm as u8]);
-                        },
-                        16 => {
-                            if let BitsMode::M32 | BitsMode::M64 = ctx.b_mode {
-                                output_write(ctx, &[0x66]);
-                            }
-
-                            if test_number_8(imm as i64) {
-                                output_write(ctx, &[0x83, build_modrm_core(REGISTERS_ENCODING[&r0], 2, 0b11), imm as u8]);
-                            }
-                            else {
-                                if !test_number_16(imm as i64) {
-                                    println!(
-                                        "{} on line {}: Immediate value `{}` too large to fit within 16 bits, truncating to 16 bits",
-                                        "Warning".yellow(),
-                                        ctx.line_no,
-                                        imm
-                                    );
-                                }
-
-                                output_write(ctx, &[0x81, build_modrm_core(REGISTERS_ENCODING[&r0], 2, 0b11)]);
-                                output_write(ctx, &(imm as u16).to_le_bytes());
-                            }
-                        },
-                        32 => {
-                            if let BitsMode::M16 = ctx.b_mode {
-                                output_write(ctx, &[0x66]);
-                            }
-
-                            if test_number_8(imm as i64) {
-                                output_write(ctx, &[0x83, build_modrm_core(REGISTERS_ENCODING[&r0], 2, 0b11), imm as u8]);
-                            }
-                            else {
-                                if !test_number_32(imm as i64) {
-                                    println!(
-                                        "{} on line {}: Immediate value `{}` too large to fit within 32 bits, truncating to 32 bits",
-                                        "Warning".yellow(),
-                                        ctx.line_no,
-                                        imm
-                                    );
-                                }
-
-                                output_write(ctx, &[0x81, build_modrm_core(REGISTERS_ENCODING[&r0], 2, 0b11)]);
-                                output_write(ctx, &(imm as u32).to_le_bytes());
-                            }
-                        },
-                        _ => {
-                            println!(
-                                "{} on line {}: Invalid register used as `adc` argument",
-                                "Error".red(),
-                                ctx.line_no
-                            );
-                            ctx.on_error = true;
-                            return;
-                        }
-                    }
-                }
+            if !x86_format_i(ctx, &FormatI{
+                register    : r0,
+                imm         : imm,
+                op_imm8     : 0x14,
+                op_imm_def  : 0x15
+            }) {
+                x86_format_ri(ctx, "adc", &FormatRI {
+                    register        : r0,
+                    register_size   : s0,
+                    imm             : imm,
+                    r8_imm8_op      : 0x80,
+                    r_def_imm8_op   : 0x83,
+                    r_imm_def_op    : 0x81
+                });
             }
         }
         else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
@@ -317,44 +240,14 @@ fn adc(ctx: &mut Context, args: &str) {
     }
     else if let AsmArg::Register(rs, ss) = parsed_args[1] {
         if let AsmArg::Register(rd, sd) = parsed_args[0] {
-            if ss != sd {
-                println!(
-                    "{} on line {}: Mismatched operand sizes for `{}`",
-                    "Error".red(),
-                    ctx.line_no,
-                    "adc".yellow()
-                );
-                ctx.on_error = true;
-                return;
-            }
-
-            if ss == 8 {
-                output_write(ctx, &[0x10, build_modrm_core(REGISTERS_ENCODING[&rd], REGISTERS_ENCODING[&rs], 0b11)]);
-            }
-            else if ss == 16 {
-                match ctx.b_mode {
-                    BitsMode::M32 | BitsMode::M64 => output_write(ctx, &[0x66]),
-                    _ => {}
-                }
-
-                output_write(ctx, &[0x11, build_modrm_core(REGISTERS_ENCODING[&rd], REGISTERS_ENCODING[&rs], 0b11)]);
-            }
-            else if ss == 32 {
-                if let BitsMode::M16 = ctx.b_mode {
-                    output_write(ctx, &[0x66]);
-                }
-                output_write(ctx, &[0x11, build_modrm_core(REGISTERS_ENCODING[&rd], REGISTERS_ENCODING[&rs], 0b11)]);
-            }
-            else {
-                println!(
-                    "{} on line {}: Unsupported format/size for `{}`",
-                    "Error".red(),
-                    ctx.line_no,
-                    "adc".yellow()
-                );
-                ctx.on_error = true;
-                return;
-            }
+            return x86_format_rr(ctx, "adc", &FormatRR {
+                reg_source      : rs,
+                reg_source_size : ss,
+                reg_dest        : rd,
+                reg_dest_size   : sd,
+                r8_op           : 0x10,
+                r_def_op        : 0x11
+            });
         }
         else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
             return x86_format_mr(ctx, &FormatMR {
