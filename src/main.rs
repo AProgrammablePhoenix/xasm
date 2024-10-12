@@ -257,7 +257,8 @@ fn adc(ctx: &mut Context, args: &str) {
                 reg_size        : ss,
                 default_reg_v   : REGISTERS_ENCODING[&rs],
                 r8_rm8_op       : 0x10,
-                r_rm_def_op     : 0x11
+                r_rm_def_op     : 0x11,
+                prefixes        : &[]
             });
         }
         else {
@@ -279,7 +280,8 @@ fn adc(ctx: &mut Context, args: &str) {
                 reg_size        : sd,
                 default_reg_v   : REGISTERS_ENCODING[&rd],
                 r8_rm8_op       : 0x12,
-                r_rm_def_op     : 0x13
+                r_rm_def_op     : 0x13,
+                prefixes        : &[]
             });
         }
         else {
@@ -325,15 +327,44 @@ fn adcx(ctx: &mut Context, args: &str) {
         if sd != 32 {
             return print_size_error(ctx);
         }
-        output_write(ctx, &[0x66, 0x0F, 0x38, 0xF6]);
 
         if let AsmArg::Register(rs, ss) = parsed_args[1] {
             if ss != 32 {
                 return print_size_error(ctx);
             }
-
+            
+            output_write(ctx, &[0x66, 0x0F, 0x38, 0xF6]);
             output_write(ctx, &[build_modrm_core(REGISTERS_ENCODING[&rs], REGISTERS_ENCODING[&rd], 0b11)]);
         }
+        else if let AsmArg::Memory(mdesc, size_override) = parsed_args[1] {
+            return x86_format_mr(ctx, &FormatMR{
+                mdesc           : mdesc,
+                size_override   : size_override,
+                reg_size        : sd,
+                default_reg_v   : REGISTERS_ENCODING[&rd],
+                r8_rm8_op       : 0xF6,
+                r_rm_def_op     : 0xF6,
+                prefixes        : &[0x66, 0x0F, 0x38, 0xF6]
+            });
+        }
+        else {
+            println!(
+                "{} on line {}: Invalid operands for `{}`, expected `{}`",
+                "Error".red(),
+                ctx.line_no,
+                "adox".purple(),
+                "adcx r32, r/m32".yellow()
+            );
+        }
+    }
+    else {
+        println!(
+            "{} on line {}: Invalid operands for `{}`, expected `{}`",
+            "Error".red(),
+            ctx.line_no,
+            "adcx".purple(),
+            "adox r32, r/m32".yellow()
+        );
     }
 }
 
@@ -412,7 +443,8 @@ fn add(ctx: &mut Context, args: &str) {
                 reg_size        : ss,
                 default_reg_v   : REGISTERS_ENCODING[&rs],
                 r8_rm8_op       : 0x00,
-                r_rm_def_op     : 0x01
+                r_rm_def_op     : 0x01,
+                prefixes        : &[]
             });
         }
         else {
@@ -434,7 +466,8 @@ fn add(ctx: &mut Context, args: &str) {
                 reg_size        : sd,
                 default_reg_v   : REGISTERS_ENCODING[&rd],
                 r8_rm8_op       : 0x02,
-                r_rm_def_op     : 0x03
+                r_rm_def_op     : 0x03,
+                prefixes        : &[]
             });
         }
         else {
@@ -450,6 +483,77 @@ fn add(ctx: &mut Context, args: &str) {
     }
 }
 
+fn adox(ctx: &mut Context, args: &str) {
+    fn print_size_error(ctx: &mut Context) {
+        println!(
+            "{} on line {}: `{}` requires the use of a 32-bit destination register and a 32-bit register/memory source",
+            "Error".red(),
+            ctx.line_no,
+            "adox".yellow()
+        );
+        ctx.on_error = true;
+    }
+
+    let parsed_args = expect_arguments::<2>(ctx, args).unwrap_or_else(|| {
+        println!(
+            "{} on line {}: Invalid number of arguments for `{}`: `{}`",
+            "Error".red(),
+            ctx.line_no,
+            "adox".purple(),
+            args.yellow()
+        );
+        ctx.on_error = true;
+        Vec::new()
+    });
+    if ctx.on_error {
+        return;
+    }
+
+    if let AsmArg::Register(rd, sd) = parsed_args[0] {
+        if sd != 32 {
+            return print_size_error(ctx);
+        }
+
+        if let AsmArg::Register(rs, ss) = parsed_args[1] {
+            if ss != 32 {
+                return print_size_error(ctx);
+            }
+
+            output_write(ctx, &[0xF3, 0x0F, 0x38, 0xF6]);
+            output_write(ctx, &[build_modrm_core(REGISTERS_ENCODING[&rs], REGISTERS_ENCODING[&rd], 0b11)]);
+        }
+        else if let AsmArg::Memory(mdesc, size_override) = parsed_args[1] {
+            return x86_format_mr(ctx, &FormatMR {
+                mdesc           : mdesc,
+                size_override   : size_override,
+                reg_size        : sd,
+                default_reg_v   : REGISTERS_ENCODING[&rd],
+                r8_rm8_op       : 0xF6,
+                r_rm_def_op     : 0xF6,
+                prefixes        : &[0xF3, 0x0F, 0x38, 0xF6]
+            });
+        }
+        else {
+            println!(
+                "{} on line {}: Invalid operands for `{}`, expected `{}`",
+                "Error".red(),
+                ctx.line_no,
+                "adox".purple(),
+                "adox r32, r/m32".yellow()
+            );
+        }
+    }
+    else {
+        println!(
+            "{} on line {}: Invalid operands for `{}`, expected `{}`",
+            "Error".red(),
+            ctx.line_no,
+            "adox".purple(),
+            "adox r32, r/m32".yellow()
+        );
+    }
+}
+
 lazy_static! {
     static ref INSTRUCTIONS: HashMap<&'static str, fn(&mut Context, &str)> = HashMap::from([
         ("aaa", aaa as fn(&mut Context, &str)),
@@ -458,7 +562,8 @@ lazy_static! {
         ("aas", aas as fn(&mut Context, &str)),
         ("adc", adc as fn(&mut Context, &str)),
         ("adcx", adcx as fn(&mut Context, &str)),
-        ("add", add as fn(&mut Context, &str))
+        ("add", add as fn(&mut Context, &str)),
+        ("adox", adox as fn(&mut Context, &str))
     ]);
 }
 

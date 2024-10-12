@@ -51,7 +51,9 @@ pub struct FormatMR {
 
     pub default_reg_v   : u8,
     pub r8_rm8_op       : u8,
-    pub r_rm_def_op     : u8
+    pub r_rm_def_op     : u8,
+
+    pub prefixes        : &'static[u8]
 }
 
 pub fn x86_format_i(ctx: &mut Context, fparams: &FormatI) -> bool {
@@ -427,9 +429,17 @@ pub fn x86_format_rr(ctx: &mut Context, instruction: &str, fparams: &FormatRR) {
 }
 
 pub fn x86_format_mr(ctx: &mut Context, fparams: &FormatMR) {
-    fn generate<const DISP_MODE: u8>(ctx: &mut Context, prefixes: &[u8], op: u8, mmop: &MemoryOperand) {
+    fn generate<const DISP_MODE: u8>(ctx: &mut Context, prefixes: &[u8], other_prefixes: &[u8], op: u8, mmop: &MemoryOperand) {
         output_write(ctx, prefixes);
-        output_write(ctx, &[op, mmop.modrm]);
+        
+        if !other_prefixes.is_empty() {
+            output_write(ctx, other_prefixes);
+        }
+        else {
+            output_write(ctx, &[op]);
+        }
+
+        output_write(ctx, &[mmop.modrm]);
 
         if mmop.has_sib {
             output_write(ctx, &[mmop.sib]);
@@ -460,9 +470,9 @@ pub fn x86_format_mr(ctx: &mut Context, fparams: &FormatMR) {
                     match ctx.b_mode {
                         BitsMode::M16 => {
                             match fparams.reg_size {
-                                8 => generate::<16>(ctx, &[], fparams.r8_rm8_op, &mmop),
-                                16 => generate::<16>(ctx, &[], fparams.r_rm_def_op, &mmop),
-                                32 => generate::<16>(ctx, &[0x66], fparams.r_rm_def_op, &mmop),
+                                8 => generate::<16>(ctx, &[], fparams.prefixes, fparams.r8_rm8_op, &mmop),
+                                16 => generate::<16>(ctx, &[], fparams.prefixes, fparams.r_rm_def_op, &mmop),
+                                32 => generate::<16>(ctx, &[0x66], fparams.prefixes, fparams.r_rm_def_op, &mmop),
                                 _ => {
                                     println!(
                                         "{} on line {}: 64 bits registers use is unsupported in 16 bits mode",
@@ -476,9 +486,9 @@ pub fn x86_format_mr(ctx: &mut Context, fparams: &FormatMR) {
                         },
                         BitsMode::M32 => {
                             match fparams.reg_size {
-                                8 => generate::<16>(ctx, &[0x67], fparams.r8_rm8_op, &mmop),
-                                16 => generate::<16>(ctx, &[0x66, 0x67], fparams.r_rm_def_op, &mmop),
-                                32 => generate::<16>(ctx, &[0x67], fparams.r_rm_def_op, &mmop),
+                                8 => generate::<16>(ctx, &[0x67], fparams.prefixes, fparams.r8_rm8_op, &mmop),
+                                16 => generate::<16>(ctx, &[0x66, 0x67], fparams.prefixes, fparams.r_rm_def_op, &mmop),
+                                32 => generate::<16>(ctx, &[0x67], fparams.prefixes, fparams.r_rm_def_op, &mmop),
                                 _ => {
                                     println!(
                                         "{} on line {}: 64 bits registers use is unsupported in 32 bits mode",
@@ -505,9 +515,9 @@ pub fn x86_format_mr(ctx: &mut Context, fparams: &FormatMR) {
                     match ctx.b_mode {
                         BitsMode::M16 => {
                             match fparams.reg_size {
-                                8 => generate::<32>(ctx, &[0x67], fparams.r8_rm8_op, &mmop),
-                                16 => generate::<32>(ctx, &[0x67], fparams.r_rm_def_op, &mmop),
-                                32 => generate::<32>(ctx, &[0x66, 0x67], fparams.r_rm_def_op, &mmop),
+                                8 => generate::<32>(ctx, &[0x67], fparams.prefixes, fparams.r8_rm8_op, &mmop),
+                                16 => generate::<32>(ctx, &[0x67], fparams.prefixes, fparams.r_rm_def_op, &mmop),
+                                32 => generate::<32>(ctx, &[0x66, 0x67], fparams.prefixes, fparams.r_rm_def_op, &mmop),
                                 _ => {
                                     println!(
                                         "{} on line {}: 64 bits registers use is unsupported in 16 bits mode",
@@ -521,9 +531,9 @@ pub fn x86_format_mr(ctx: &mut Context, fparams: &FormatMR) {
                         },
                         BitsMode::M32 => {
                             match fparams.reg_size {
-                                8 => generate::<32>(ctx, &[], fparams.r8_rm8_op, &mmop),
-                                16 => generate::<32>(ctx, &[0x66], fparams.r_rm_def_op, &mmop),
-                                32 => generate::<32>(ctx, &[], fparams.r_rm_def_op, &mmop),
+                                8 => generate::<32>(ctx, &[], fparams.prefixes, fparams.r8_rm8_op, &mmop),
+                                16 => generate::<32>(ctx, &[0x66], fparams.prefixes, fparams.r_rm_def_op, &mmop),
+                                32 => generate::<32>(ctx, &[], fparams.prefixes, fparams.r_rm_def_op, &mmop),
                                 _ => {
                                     println!(
                                         "{} on line {}: 64 bits registers use is unsupported in 32 bits mode",
