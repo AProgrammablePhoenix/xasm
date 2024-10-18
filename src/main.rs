@@ -258,7 +258,8 @@ fn adc(ctx: &mut Context, args: &str) {
                 default_reg_v   : REGISTERS_ENCODING[&rs],
                 r8_rm8_op       : 0x10,
                 r_rm_def_op     : 0x11,
-                prefixes        : &[]
+                prefixes        : &[],
+                ex_prefixes     : &[]
             });
         }
         else {
@@ -281,7 +282,8 @@ fn adc(ctx: &mut Context, args: &str) {
                 default_reg_v   : REGISTERS_ENCODING[&rd],
                 r8_rm8_op       : 0x12,
                 r_rm_def_op     : 0x13,
-                prefixes        : &[]
+                prefixes        : &[],
+                ex_prefixes     : &[]
             });
         }
         else {
@@ -344,7 +346,8 @@ fn adcx(ctx: &mut Context, args: &str) {
                 default_reg_v   : REGISTERS_ENCODING[&rd],
                 r8_rm8_op       : 0xF6,
                 r_rm_def_op     : 0xF6,
-                prefixes        : &[0x66, 0x0F, 0x38, 0xF6]
+                prefixes        : &[0x66, 0x0F, 0x38, 0xF6],
+                ex_prefixes     : &[0x66]
             });
         }
         else {
@@ -444,7 +447,8 @@ fn add(ctx: &mut Context, args: &str) {
                 default_reg_v   : REGISTERS_ENCODING[&rs],
                 r8_rm8_op       : 0x00,
                 r_rm_def_op     : 0x01,
-                prefixes        : &[]
+                prefixes        : &[],
+                ex_prefixes     : &[]
             });
         }
         else {
@@ -467,7 +471,8 @@ fn add(ctx: &mut Context, args: &str) {
                 default_reg_v   : REGISTERS_ENCODING[&rd],
                 r8_rm8_op       : 0x02,
                 r_rm_def_op     : 0x03,
-                prefixes        : &[]
+                prefixes        : &[],
+                ex_prefixes     : &[]
             });
         }
         else {
@@ -530,7 +535,8 @@ fn adox(ctx: &mut Context, args: &str) {
                 default_reg_v   : REGISTERS_ENCODING[&rd],
                 r8_rm8_op       : 0xF6,
                 r_rm_def_op     : 0xF6,
-                prefixes        : &[0xF3, 0x0F, 0x38, 0xF6]
+                prefixes        : &[0xF3, 0x0F, 0x38, 0xF6],
+                ex_prefixes     : &[0xF3, 0x66]
             });
         }
         else {

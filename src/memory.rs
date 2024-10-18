@@ -527,16 +527,18 @@ pub fn make_modrm_sib(ctx: &mut Context, mut desc: MemoryOperandDescriptor, reg_
                 (desc.index, desc.base) = (desc.base, desc.index);
             }
 
-            if desc.index == 0xFF && desc.base != esp_encoding && desc.base != ebp_encoding {
+            if desc.index == 0xFF && desc.base != esp_encoding {
                 if desc.disp.0 == 0 {
-                    return Ok(MemoryOperand{
-                        size        : 32,
-                        modrm       : build_modrm_core(desc.base, reg_v, 0b00),
-                        has_sib     : false,
-                        sib         : 0,
-                        disp_size   : 0,
-                        disp        : 0
-                    });
+                    if desc.base != ebp_encoding {
+                        return Ok(MemoryOperand{
+                            size        : 32,
+                            modrm       : build_modrm_core(desc.base, reg_v, 0b00),
+                            has_sib     : false,
+                            sib         : 0,
+                            disp_size   : 0,
+                            disp        : 0
+                        });
+                    }
                 }
                 else if test_number_8(desc.disp.0) {
                     return Ok(MemoryOperand{
@@ -559,83 +561,52 @@ pub fn make_modrm_sib(ctx: &mut Context, mut desc: MemoryOperandDescriptor, reg_
                     });
                 }
             }
-            else {
-                let sib_rm = esp_encoding;
+            
+            let sib_rm = esp_encoding;
 
-                let disp_size = if test_number_8(desc.disp.0) { 8 } else { 32 };
-                let mmod = if disp_size == 8 { 0b01 } else { 0b10 };
+            let disp_size = if test_number_8(desc.disp.0) { 8 } else { 32 };
+            let mmod = if disp_size == 8 { 0b01 } else { 0b10 };
 
-                if desc.base == 0xFF && desc.index == 0xFF {
+            if desc.base == 0xFF && desc.index == 0xFF {
+                return Ok(MemoryOperand{
+                    size        : 32,
+                    modrm       : build_modrm_core(sib_rm, reg_v, 0b00),
+                    has_sib     : true,
+                    sib         : build_sib_core!(0b101, 0b100, 0b00),
+                    disp_size   : 32,
+                    disp        : desc.disp.0 as u64
+                });
+            }
+            else if desc.base == ebp_encoding {
+                if desc.index == 0xFF {
                     return Ok(MemoryOperand{
                         size        : 32,
-                        modrm       : build_modrm_core(sib_rm, reg_v, 0b00),
+                        modrm       : build_modrm_core(sib_rm, reg_v, mmod),
                         has_sib     : true,
-                        sib         : build_sib_core!(0b101, 0b100, 0b00),
-                        disp_size   : 32,
+                        sib         : build_sib_core!(ebp_encoding, esp_encoding, 0b00),
+                        disp_size   : disp_size,
                         disp        : desc.disp.0 as u64
                     });
                 }
-                else if desc.base == ebp_encoding {
-                    if desc.index == 0xFF {
-                        return Ok(MemoryOperand{
-                            size        : 32,
-                            modrm       : build_modrm_core(sib_rm, reg_v, mmod),
-                            has_sib     : true,
-                            sib         : build_sib_core!(ebp_encoding, esp_encoding, 0b00),
-                            disp_size   : disp_size,
-                            disp        : desc.disp.0 as u64
-                        });
-                    }
-                    else {
-                        return Ok(MemoryOperand{
-                            size        : 32,
-                            modrm       : build_modrm_core(sib_rm, reg_v, mmod),
-                            has_sib     : true,
-                            sib         : build_sib_core!(ebp_encoding, desc.index, desc.scale.0),
-                            disp_size   : disp_size,
-                            disp        : desc.disp.0 as u64
-                        });
-                    }
-                }
                 else {
-                    if desc.index == 0xFF {
-                        if desc.disp.0 == 0 {
-                            return Ok(MemoryOperand{
-                                size        : 32,
-                                modrm       : build_modrm_core(sib_rm, reg_v, 0b00),
-                                has_sib     : true,
-                                sib         : build_sib_core!(desc.base, esp_encoding, 0b00),
-                                disp_size   : 0,
-                                disp        : 0
-                            });
-                        }
-                        else {
-                            return Ok(MemoryOperand{
-                                size        : 32,
-                                modrm       : build_modrm_core(sib_rm, reg_v, mmod),
-                                has_sib     : true,
-                                sib         : build_sib_core!(desc.base, esp_encoding, 0b00),
-                                disp_size   : disp_size,
-                                disp        : desc.disp.0 as u64
-                            });
-                        }
-                    }
-                    else if desc.base == 0xFF {
+                    return Ok(MemoryOperand{
+                        size        : 32,
+                        modrm       : build_modrm_core(sib_rm, reg_v, mmod),
+                        has_sib     : true,
+                        sib         : build_sib_core!(ebp_encoding, desc.index, desc.scale.0),
+                        disp_size   : disp_size,
+                        disp        : desc.disp.0 as u64
+                    });
+                }
+            }
+            else {
+                if desc.index == 0xFF {
+                    if desc.disp.0 == 0 {
                         return Ok(MemoryOperand{
                             size        : 32,
                             modrm       : build_modrm_core(sib_rm, reg_v, 0b00),
                             has_sib     : true,
-                            sib         : build_sib_core!(ebp_encoding, desc.index, desc.scale.0),
-                            disp_size   : 32,
-                            disp        : desc.disp.0 as u64
-                        });
-                    }
-                    else if desc.disp.0 == 0 {
-                        return Ok(MemoryOperand{
-                            size        : 32,
-                            modrm       : build_modrm_core(sib_rm, reg_v, 0b00),
-                            has_sib     : true,
-                            sib         : build_sib_core!(desc.base, desc.index, desc.scale.0),
+                            sib         : build_sib_core!(desc.base, esp_encoding, 0b00),
                             disp_size   : 0,
                             disp        : 0
                         });
@@ -645,11 +616,41 @@ pub fn make_modrm_sib(ctx: &mut Context, mut desc: MemoryOperandDescriptor, reg_
                             size        : 32,
                             modrm       : build_modrm_core(sib_rm, reg_v, mmod),
                             has_sib     : true,
-                            sib         : build_sib_core!(desc.base, desc.index, desc.scale.0),
+                            sib         : build_sib_core!(desc.base, esp_encoding, 0b00),
                             disp_size   : disp_size,
                             disp        : desc.disp.0 as u64
                         });
                     }
+                }
+                else if desc.base == 0xFF {
+                    return Ok(MemoryOperand{
+                        size        : 32,
+                        modrm       : build_modrm_core(sib_rm, reg_v, 0b00),
+                        has_sib     : true,
+                        sib         : build_sib_core!(ebp_encoding, desc.index, desc.scale.0),
+                        disp_size   : 32,
+                        disp        : desc.disp.0 as u64
+                    });
+                }
+                else if desc.disp.0 == 0 {
+                    return Ok(MemoryOperand{
+                        size        : 32,
+                        modrm       : build_modrm_core(sib_rm, reg_v, 0b00),
+                        has_sib     : true,
+                        sib         : build_sib_core!(desc.base, desc.index, desc.scale.0),
+                        disp_size   : 0,
+                        disp        : 0
+                    });
+                }
+                else {
+                    return Ok(MemoryOperand{
+                        size        : 32,
+                        modrm       : build_modrm_core(sib_rm, reg_v, mmod),
+                        has_sib     : true,
+                        sib         : build_sib_core!(desc.base, desc.index, desc.scale.0),
+                        disp_size   : disp_size,
+                        disp        : desc.disp.0 as u64
+                    });
                 }
             }
         },
