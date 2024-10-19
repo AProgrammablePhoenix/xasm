@@ -749,6 +749,68 @@ fn arpl(ctx: &mut Context, args: &str) {
     }
 }
 
+fn bound(ctx: &mut Context, args: &str) {
+    let parsed_args = expect_arguments::<2>(ctx, args).unwrap_or_else(|| {
+        println!(
+            "{} on line {}: Invalid number of arguments for `{}`: `{}`",
+            "Error".red(),
+            ctx.line_no,
+            "bound".purple(),
+            args.yellow()
+        );
+        ctx.on_error = true;
+        Vec::new()
+    });
+    if ctx.on_error {
+        return;
+    }
+
+    if let AsmArg::Register(rd, sd) = parsed_args[0] {
+        if let AsmArg::Memory(mdesc, size_override) = parsed_args[1] {
+            if (size_override != 0 && size_override != 16 && size_override != 32) || (sd != 16 && sd != 32) {
+                println!(
+                    "{} on line {}: Invalid operands for `{}`, expected `{}`",
+                    "Error".red(),
+                    ctx.line_no,
+                    "bound".purple(),
+                    "bound r16, m16&16".yellow()
+                );
+                ctx.on_error = true;
+                return;
+            }
+
+            return x86_format_mr(ctx, &FormatMR {
+                mdesc               : mdesc,
+                size_override       : size_override,
+                reg_size            : sd,
+                default_reg_v       : REGISTERS_ENCODING[&rd],
+                r8_rm8_op           : 0x62,
+                r_rm_def_op         : 0x62,
+                prefixes            : &[],
+                ex_prefixes         : &[]
+            });
+        }
+        else {
+            println!(
+                "{} on line {}: Invalid operands for `{}`, expected `{}`",
+                "Error".red(),
+                ctx.line_no,
+                "bound".purple(),
+                "bound r16, m16&16".yellow()
+            );
+        }
+    }
+    else {
+        println!(
+            "{} on line {}: Invalid operands for `{}`, expected `{}`",
+            "Error".red(),
+            ctx.line_no,
+            "bound".purple(),
+            "bound r16, m16&16".yellow()
+        );
+    }
+}
+
 lazy_static! {
     static ref INSTRUCTIONS: HashMap<&'static str, fn(&mut Context, &str)> = HashMap::from([
         ("aaa", aaa as fn(&mut Context, &str)),
@@ -760,7 +822,8 @@ lazy_static! {
         ("add", add as fn(&mut Context, &str)),
         ("adox", adox as fn(&mut Context, &str)),
         ("and", and as fn(&mut Context, &str)),
-        ("arpl", arpl as fn(&mut Context, &str))
+        ("arpl", arpl as fn(&mut Context, &str)),
+        ("bound", bound as fn(&mut Context, &str))
     ]);
 }
 
