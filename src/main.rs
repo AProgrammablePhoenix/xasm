@@ -666,7 +666,8 @@ lazy_static! {
         ("adox", adox as fn(&mut Context, &str)),
         ("and", and as fn(&mut Context, &str)),
         ("arpl", arpl as fn(&mut Context, &str)),
-        ("bound", bound as fn(&mut Context, &str))
+        ("bound", bound as fn(&mut Context, &str)),
+        ("bsf", bsf as fn(&mut Context, &str))
     ]);
 }
 
