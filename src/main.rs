@@ -182,13 +182,21 @@ fn aas(ctx: &mut Context, args: &str) {
     }
 }
 
-fn adc(ctx: &mut Context, args: &str) {
+fn pure_alu<const OP_A_8_IMM: u8, const OP_RM_R_8: u8, const OP_MI_MODRM_REGV: u8>(ctx: &mut Context, args: &str, instr: &'static str) {
+    let op_a_def_imm      : u8 = OP_A_8_IMM + 1;
+    let op_r_8_imm        : u8 = 0x80;
+    let op_r_def_imm      : u8 = 0x81;
+    let op_r_def_imm_8    : u8 = 0x83;
+    let op_rm_r_def       : u8 = OP_RM_R_8 + 1;
+    let op_r_rm_8         : u8 = OP_RM_R_8 + 2;
+    let op_r_rm_def       : u8 = OP_RM_R_8 + 3;
+
     let parsed_args = expect_arguments::<2>(ctx, args).unwrap_or_else(|| {
         println!(
             "{} on line {}: Invalid number of arguments for `{}`: `{}`",
             "Error".red(),
             ctx.line_no,
-            "adc".purple(),
+            instr.purple(),
             args.yellow()
         );
         ctx.on_error = true;
@@ -200,20 +208,20 @@ fn adc(ctx: &mut Context, args: &str) {
 
     if let AsmArg::Immediate(imm) = parsed_args[1] {
         if let AsmArg::Register(r0, s0) = parsed_args[0] {
-            if !x86_format_i(ctx, &FormatI{
+            if !x86_format_i(ctx, &FormatI {
                 register    : r0,
                 imm         : imm,
-                op_imm8     : 0x14,
-                op_imm_def  : 0x15
+                op_imm8     : OP_A_8_IMM,
+                op_imm_def  : op_a_def_imm
             }) {
-                x86_format_ri(ctx, "adc", &FormatRI {
+                x86_format_ri(ctx, instr, &FormatRI {
                     register        : r0,
                     register_size   : s0,
                     imm             : imm,
-                    default_reg_v   : 2,
-                    r8_imm8_op      : 0x80,
-                    r_def_imm8_op   : 0x83,
-                    r_imm_def_op    : 0x81
+                    default_reg_v   : OP_MI_MODRM_REGV,
+                    r8_imm8_op      : op_r_8_imm,
+                    r_def_imm8_op   : op_r_def_imm_8,
+                    r_imm_def_op    : op_r_def_imm
                 });
             }
         }
@@ -222,10 +230,10 @@ fn adc(ctx: &mut Context, args: &str) {
                 mdesc           : mdesc,
                 size_override   : size_override,
                 imm             : imm,
-                default_reg_v   : 2,
-                r8_imm8_op      : 0x80,
-                r_imm_def_op    : 0x81,
-                r_def_imm8_op   : 0x83
+                default_reg_v   : OP_MI_MODRM_REGV,
+                r8_imm8_op      : op_r_8_imm,
+                r_imm_def_op    : op_r_def_imm,
+                r_def_imm8_op   : op_r_def_imm_8
             });
         }
         else {
@@ -233,7 +241,7 @@ fn adc(ctx: &mut Context, args: &str) {
                 "{} on line {}: Wrong destination operand type for `{}`, expected a register or memory operand",
                 "Error".red(),
                 ctx.line_no,
-                "adc".yellow()
+                instr.yellow()
             );
             ctx.on_error = true;
             return;
@@ -241,13 +249,13 @@ fn adc(ctx: &mut Context, args: &str) {
     }
     else if let AsmArg::Register(rs, ss) = parsed_args[1] {
         if let AsmArg::Register(rd, sd) = parsed_args[0] {
-            return x86_format_rr(ctx, "adc", &FormatRR {
+            return x86_format_rr(ctx, instr, &FormatRR {
                 reg_source      : rs,
                 reg_source_size : ss,
                 reg_dest        : rd,
                 reg_dest_size   : sd,
-                r8_op           : 0x10,
-                r_def_op        : 0x11
+                r8_op           : OP_RM_R_8,
+                r_def_op        : op_rm_r_def
             });
         }
         else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
@@ -256,8 +264,8 @@ fn adc(ctx: &mut Context, args: &str) {
                 size_override   : size_override,
                 reg_size        : ss,
                 default_reg_v   : REGISTERS_ENCODING[&rs],
-                r8_rm8_op       : 0x10,
-                r_rm_def_op     : 0x11,
+                r8_rm8_op       : OP_RM_R_8,
+                r_rm_def_op     : op_rm_r_def,
                 prefixes        : &[],
                 ex_prefixes     : &[]
             });
@@ -267,7 +275,7 @@ fn adc(ctx: &mut Context, args: &str) {
                 "{} on line {}: Wrong destination operand type for `{}`, expected a register or memory operand",
                 "Error".red(),
                 ctx.line_no,
-                "adc".yellow()
+                instr.yellow()
             );
             ctx.on_error = true;
             return;
@@ -280,8 +288,8 @@ fn adc(ctx: &mut Context, args: &str) {
                 size_override   : size_override,
                 reg_size        : sd,
                 default_reg_v   : REGISTERS_ENCODING[&rd],
-                r8_rm8_op       : 0x12,
-                r_rm_def_op     : 0x13,
+                r8_rm8_op       : op_r_rm_8,
+                r_rm_def_op     : op_r_rm_def,
                 prefixes        : &[],
                 ex_prefixes     : &[]
             });
@@ -291,12 +299,16 @@ fn adc(ctx: &mut Context, args: &str) {
                 "{} on line {}: Wrong destination operand type for `{}`, expected a register operand",
                 "Error".red(),
                 ctx.line_no,
-                "adc".yellow()
+                instr.yellow()
             );
             ctx.on_error = true;
             return;
         }
     }
+}
+
+fn adc(ctx: &mut Context, args: &str) {
+    pure_alu::<0x14, 0x10, 0x2>(ctx, args, "adc");
 }
 
 fn adcx(ctx: &mut Context, args: &str) {
@@ -372,120 +384,7 @@ fn adcx(ctx: &mut Context, args: &str) {
 }
 
 fn add(ctx: &mut Context, args: &str) {
-    let parsed_args = expect_arguments::<2>(ctx, args).unwrap_or_else(|| {
-        println!(
-            "{} on line {}: Invalid number of arguments for `{}`: `{}`",
-            "Error".red(),
-            ctx.line_no,
-            "add".purple(),
-            args.yellow()
-        );
-        ctx.on_error = true;
-        Vec::new()
-    });
-    if ctx.on_error {
-        return;
-    }
-
-    if let AsmArg::Immediate(imm) = parsed_args[1] {
-        if let AsmArg::Register(r0, s0) = parsed_args[0] {
-            if !x86_format_i(ctx, &FormatI{
-                register    : r0,
-                imm         : imm,
-                op_imm8     : 0x04,
-                op_imm_def  : 0x05
-            }) {
-                x86_format_ri(ctx, "add", &FormatRI {
-                    register        : r0,
-                    register_size   : s0,
-                    imm             : imm,
-                    default_reg_v   : 0,
-                    r8_imm8_op      : 0x80,
-                    r_def_imm8_op   : 0x83,
-                    r_imm_def_op    : 0x81
-                });
-            }
-        }
-        else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
-            return x86_format_mi(ctx, &FormatMI {
-                mdesc           : mdesc,
-                size_override   : size_override,
-                imm             : imm,
-                default_reg_v   : 0,
-                r8_imm8_op      : 0x80,
-                r_imm_def_op    : 0x81,
-                r_def_imm8_op   : 0x83
-            });
-        }
-        else {
-            println!(
-                "{} on line {}: Wrong destination operand type for `{}`, expected a register or memory operand",
-                "Error".red(),
-                ctx.line_no,
-                "add".yellow()
-            );
-            ctx.on_error = true;
-            return;
-        }
-    }
-    else if let AsmArg::Register(rs, ss) = parsed_args[1] {
-        if let AsmArg::Register(rd, sd) = parsed_args[0] {
-            return x86_format_rr(ctx, "add", &FormatRR {
-                reg_source      : rs,
-                reg_source_size : ss,
-                reg_dest        : rd,
-                reg_dest_size   : sd,
-                r8_op           : 0x00,
-                r_def_op        : 0x01
-            });
-        }
-        else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
-            return x86_format_mr(ctx, &FormatMR {
-                mdesc           : mdesc,
-                size_override   : size_override,
-                reg_size        : ss,
-                default_reg_v   : REGISTERS_ENCODING[&rs],
-                r8_rm8_op       : 0x00,
-                r_rm_def_op     : 0x01,
-                prefixes        : &[],
-                ex_prefixes     : &[]
-            });
-        }
-        else {
-            println!(
-                "{} on line {}: Wrong destination operand type for `{}`, expected a register or memory operand",
-                "Error".red(),
-                ctx.line_no,
-                "add".yellow()
-            );
-            ctx.on_error = true;
-            return;
-        }
-    }
-    else if let AsmArg::Memory(mdesc, size_override) = parsed_args[1] {
-        if let AsmArg::Register(rd, sd) = parsed_args[0] {
-            return x86_format_mr(ctx, &FormatMR {
-                mdesc           : mdesc,
-                size_override   : size_override,
-                reg_size        : sd,
-                default_reg_v   : REGISTERS_ENCODING[&rd],
-                r8_rm8_op       : 0x02,
-                r_rm_def_op     : 0x03,
-                prefixes        : &[],
-                ex_prefixes     : &[]
-            });
-        }
-        else {
-            println!(
-                "{} on line {}: Wrong destination operand type for `{}`, expected a register operand",
-                "Error".red(),
-                ctx.line_no,
-                "add".yellow()
-            );
-            ctx.on_error = true;
-            return;
-        }
-    }
+    pure_alu::<0x04, 0x00, 0x0>(ctx, args, "add");
 }
 
 fn adox(ctx: &mut Context, args: &str) {
@@ -561,120 +460,7 @@ fn adox(ctx: &mut Context, args: &str) {
 }
 
 fn and(ctx: &mut Context, args: &str) {
-    let parsed_args = expect_arguments::<2>(ctx, args).unwrap_or_else(|| {
-        println!(
-            "{} on line {}: Invalid number of arguments for `{}`: `{}`",
-            "Error".red(),
-            ctx.line_no,
-            "and".purple(),
-            args.yellow()
-        );
-        ctx.on_error = true;
-        Vec::new()
-    });
-    if ctx.on_error {
-        return;
-    }
-
-    if let AsmArg::Immediate(imm) = parsed_args[1] {
-        if let AsmArg::Register(r0, s0) = parsed_args[0] {
-            if !x86_format_i(ctx, &FormatI{
-                register    : r0,
-                imm         : imm,
-                op_imm8     : 0x24,
-                op_imm_def  : 0x25
-            }) {
-                x86_format_ri(ctx, "and", &FormatRI {
-                    register        : r0,
-                    register_size   : s0,
-                    imm             : imm,
-                    default_reg_v   : 4,
-                    r8_imm8_op      : 0x80,
-                    r_def_imm8_op   : 0x83,
-                    r_imm_def_op    : 0x81
-                });
-            }
-        }
-        else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
-            return x86_format_mi(ctx, &FormatMI {
-                mdesc           : mdesc,
-                size_override   : size_override,
-                imm             : imm,
-                default_reg_v   : 4,
-                r8_imm8_op      : 0x80,
-                r_imm_def_op    : 0x81,
-                r_def_imm8_op   : 0x83
-            });
-        }
-        else {
-            println!(
-                "{} on line {}: Wrong destination operand type for `{}`, expected a register or memory operand",
-                "Error".red(),
-                ctx.line_no,
-                "and".yellow()
-            );
-            ctx.on_error = true;
-            return;
-        }
-    }
-    else if let AsmArg::Register(rs, ss) = parsed_args[1] {
-        if let AsmArg::Register(rd, sd) = parsed_args[0] {
-            return x86_format_rr(ctx, "and", &FormatRR {
-                reg_source      : rs,
-                reg_source_size : ss,
-                reg_dest        : rd,
-                reg_dest_size   : sd,
-                r8_op           : 0x20,
-                r_def_op        : 0x21
-            });
-        }
-        else if let AsmArg::Memory(mdesc, size_override) = parsed_args[0] {
-            return x86_format_mr(ctx, &FormatMR {
-                mdesc           : mdesc,
-                size_override   : size_override,
-                reg_size        : ss,
-                default_reg_v   : REGISTERS_ENCODING[&rs],
-                r8_rm8_op       : 0x20,
-                r_rm_def_op     : 0x21,
-                prefixes        : &[],
-                ex_prefixes     : &[]
-            });
-        }
-        else {
-            println!(
-                "{} on line {}: Wrong destination operand type for `{}`, expected a register or memory operand",
-                "Error".red(),
-                ctx.line_no,
-                "and".yellow()
-            );
-            ctx.on_error = true;
-            return;
-        }
-    }
-    else if let AsmArg::Memory(mdesc, size_override) = parsed_args[1] {
-        if let AsmArg::Register(rd, sd) = parsed_args[0] {
-            return x86_format_mr(ctx, &FormatMR {
-                mdesc           : mdesc,
-                size_override   : size_override,
-                reg_size        : sd,
-                default_reg_v   : REGISTERS_ENCODING[&rd],
-                r8_rm8_op       : 0x22,
-                r_rm_def_op     : 0x23,
-                prefixes        : &[],
-                ex_prefixes     : &[]
-            });
-        }
-        else {
-            println!(
-                "{} on line {}: Wrong destination operand type for `{}`, expected a register operand",
-                "Error".red(),
-                ctx.line_no,
-                "and".yellow()
-            );
-            ctx.on_error = true;
-            return;
-        }
-    }
+    pure_alu::<0x24, 0x20, 0x4>(ctx, args, "and");
 }
 
 fn arpl(ctx: &mut Context, args: &str) {
@@ -773,7 +559,7 @@ fn bound(ctx: &mut Context, args: &str) {
                     "Error".red(),
                     ctx.line_no,
                     "bound".purple(),
-                    "bound r16, m16&16".yellow()
+                    "bound r16, m16&16 | bound r32, m32&m32".yellow()
                 );
                 ctx.on_error = true;
                 return;
@@ -796,8 +582,10 @@ fn bound(ctx: &mut Context, args: &str) {
                 "Error".red(),
                 ctx.line_no,
                 "bound".purple(),
-                "bound r16, m16&16".yellow()
+                "bound r16, m16&16 | bound r32, m32&m32".yellow()
             );
+            ctx.on_error = true;
+            return;
         }
     }
     else {
@@ -806,8 +594,63 @@ fn bound(ctx: &mut Context, args: &str) {
             "Error".red(),
             ctx.line_no,
             "bound".purple(),
-            "bound r16, m16&16".yellow()
+            "bound r16, m16&16 | bound r32, m32&m32".yellow()
         );
+        ctx.on_error = true;
+        return;
+    }
+}
+
+fn bsf(ctx: &mut Context, args: &str) {
+    let parsed_args = expect_arguments::<2>(ctx, args).unwrap_or_else(|| {
+        println!(
+            "{} on line {}: Invalid number of arguments for `{}`: `{}`",
+            "Error".red(),
+            ctx.line_no,
+            "bound".purple(),
+            args.yellow()
+        );
+        ctx.on_error = true;
+        Vec::new()
+    });
+    if ctx.on_error {
+        return;
+    }
+
+    if let AsmArg::Register(rd, sd) = parsed_args[0] {
+        if sd != 16 && sd != 32 {
+            println!(
+                "{} on line {}: Invalid operands for `{}`, expected `{}`",
+                "Error".red(),
+                ctx.line_no,
+                "bsf".purple(),
+                "bsf r16, r/m16 | bsf r32, r/m32".yellow()
+            );
+            ctx.on_error = true;
+            return;
+        }
+
+        if let AsmArg::Register(rs, ss) = parsed_args[1] {
+            return x86_format_rr(ctx, "bsf", &FormatRR {
+                reg_source      : rs,
+                reg_source_size : ss,
+                reg_dest        : rd,
+                reg_dest_size   : sd,
+                r8_op           : 0xBC,
+                r_def_op        : 0xBC
+            });
+        }
+    }
+    else {
+        println!(
+            "{} on line {}: Invalid operands for `{}`, expected `{}`",
+            "Error".red(),
+            ctx.line_no,
+            "bsf".purple(),
+            "bsf r16, r/m16 | bsf r32, r/m32".yellow()
+        );
+        ctx.on_error = true;
+        return;
     }
 }
 
